@@ -1,0 +1,143 @@
+---
+title: "Biomedical Data Science - Assignment 1"
+author: "Damian Baeza"
+date: "14 February 2018"
+output: pdf_document
+---
+
+# Problem 1
+## Question (a)
+
+```{r}
+# Data frame with the airquality data
+df.a <- airquality
+
+# Number of missing values in Ozone variable
+Ozone.Miss <- sum(is.na(df.a$Ozone))
+print(Ozone.Miss)
+
+# Mean imputation of Ozone variable
+df.a$Ozone[is.na(df.a$Ozone)] <- mean(df.a$Ozone, na.rm = TRUE)
+
+# Number of missing values in Ozone variable after mean imputation
+Ozone.Miss <- sum(is.na(df.a$Ozone))
+print(Ozone.Miss)
+```
+
+## Question (b)
+
+```{r}
+require(ggplot2)
+
+impute.to.window.mean <- function(x, windowsize){
+  ## Function that imputes the mean of a vector considering a windowsize.
+  ## A missing value will be imputed with the mean of the values in the
+  ## positions (i - windowsize) and (i + windowsize).
+  ## Inputs: vector to be imputed and size of window
+  ## Outputs: imputed vector
+  if(windowsize > length(x)){
+    warning("Window size is longer than vector, vector length will be used instead")
+    impute.val <- mean(x, na.rm = TRUE)
+    x[is.na(x)] <- impute.val
+    return(x)
+  }
+  else if(windowsize < 0){
+    stop("Window size is negative!")
+  }
+  else{
+    # position of missing values
+    Miss.pos <- which(is.na(x))
+    new.x <- x
+    for(i in Miss.pos){
+      # calculation of begining of the window of values used for
+      # imputation
+      first <- max(i - windowsize, 1)
+      # calculation of end of the window of values used for
+      # imputation
+      last <- min(i + windowsize, length(x))
+      # mean calculation
+      impute.val <- mean(x[first:last], na.rm = TRUE)
+      # imputation of missing value
+      new.x[i] <- impute.val
+    }
+    return(new.x)
+  }
+}
+```
+
+## Question (c)
+
+```{r}
+df.c <- airquality$Ozone
+
+n <- length(df.c)
+
+windows.size <- c(10, 25, 50, 75, 100, 125)
+
+Results.Q1 <- data.frame(n10 = numeric(n),
+                         n25 = numeric(n),
+                         n50 = numeric(n),
+                         n75 = numeric(n),
+                         n100 = numeric(n),
+                         n125 = numeric(n))
+
+for (i in 1:length(windows.size)) {
+  Results.Q1[,i] <- impute.to.window.mean(x = df.c,
+                                          windowsize = windows.size[i])
+}
+
+Abs.Diff <- round(abs(Results.Q1 - df.a$Ozone), 3)
+
+colnames(Abs.Diff) <- c()
+
+Max.Abs.Diff <- data.frame(Max.Abs.Diff = sapply(Abs.Diff, max), Window.Size = windows.size)
+
+print(Max.Abs.Diff)
+
+ggplot(data = Max.Abs.Diff, aes(x = Window.Size, y = Max.Abs.Diff)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Window Size", y = "Maximum Absolute Difference",
+       title = "Variation of Maximum Absolute Difference with Window Size")
+
+```
+
+## Question (d)
+
+# Problem 2
+
+# Problem 3
+
+## Question (a)
+
+```{r}
+egfr.mdrd4 <- function(scr, age, sex, ethnic){
+  mdrd4 <- 175*scr^(-1.154)*age^(-0.203)
+  if(sex == "Female"){
+    mdrd4 <- base.mdrd4*0.742
+  }
+  if(ethnic == "Black"){
+    mdrd4 <- base.mdrd4*1.212
+  }
+  return(mdrd4)
+}
+
+egfr.ckdepi <- function(scr, age, sex, ethnic){
+  if(sex == "Female"){
+    Kappa <- 0.7
+    alpha <- -0.329
+    adic.factor <- 1.018
+  } else{
+    Kappa <- 0.9
+    alpha <- -0.411
+    adic.factor <- 1
+  }
+  ckdepi <- 141*min(scr/Kappa,1)^alpha*max(scr/Kappa,1)^(-1.209)
+  ckdepi <- ckdepi*0.993^(age)*adic.factor
+  if(ethnic == "Black"){
+    ckdepi <- ckdepi*1.159
+  }
+  return(ckdepi)
+}
+```
+
