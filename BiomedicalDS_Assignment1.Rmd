@@ -36,7 +36,7 @@ impute.to.window.mean <- function(x, windowsize){
   ## Inputs: vector to be imputed and size of window
   ## Outputs: imputed vector
   if(windowsize > length(x)){
-    warning("Window size is longer than vector, vector length will be used instead")
+    warning("Window size is longer than vector, vector length will be used window size")
     impute.val <- mean(x, na.rm = TRUE)
     x[is.na(x)] <- impute.val
     return(x)
@@ -104,7 +104,83 @@ ggplot(data = Max.Abs.Diff, aes(x = Window.Size, y = Max.Abs.Diff)) +
 
 ## Question (d)
 
+The smallest window size is 5.
+
+```{r}
+min.window <- 0
+
+df.d <- airquality
+
+df.d$Ozone <- airquality$Ozone
+df.d$Solar.R <- airquality$Solar.R
+
+for(i in 1:length(df.d$Ozone)){
+  Ozone.chkr <- sum(is.nan(impute.to.window.mean(df.d$Ozone, i)))
+  Solar.R.chkr <- sum(is.nan(impute.to.window.mean(df.d$Solar.R, i)))
+  if(Ozone.chkr == 0 & Solar.R.chkr == 0){
+    min.window <- i
+    break
+  }
+}
+
+print("Smallest window that allows imputation of all missing values: ")
+print(min.window)
+```
+
+
+
 # Problem 2
+
+```{r}
+longe.egfr.1 <- read.csv(file = "longegfr1.csv", header = TRUE)
+
+# changing of variable name in longegfr1 to match that of longegfr2
+colnames(longe.egfr.1)[1] <- "ID"
+
+longe.egfr.2 <- read.csv(file = "longegfr2.csv", header = TRUE)
+
+longe.egfr <- merge(x = longe.egfr.1, y = longe.egfr.2, by = c("ID", "fu.years"),
+                    all.x = TRUE)
+
+longe.egfr$ID <- as.numeric(longe.egfr$ID)
+
+longe.egfr <- longe.egfr[order(longe.egfr$ID, longe.egfr$fu.years),]
+
+sort.chkr <- function(x = longe.egfr){
+  if (is.unsorted(x$ID)) {
+    stop("ID is not sorted!")
+  }
+  for(i in unique(x$ID)){
+    if(is.unsorted(x$fu.years[x$ID == i])){
+      stop("Follow up time is not sorted!")
+    }
+  }
+  return("Data frame is ordered accordingly!")
+}
+
+print(sort.chkr())
+
+```
+
+## Question (b)
+
+```{r}
+require(dplyr)
+
+eGFR.averages <- longe.egfr %>% as_tibble() %>% group_by(ID) %>%
+  summarise(mean = mean(egfr))
+
+eGFR.averages$interval <- cut(eGFR.averages$mean,
+                              breaks = c(0, 15, 30, 60, 90, Inf))
+
+print("Patients according to average eGFR: ")
+print(table(eGFR.averages$interval))
+
+print("Number of missing averages: ")
+print(length(unique(longe.egfr$ID)) - length(eGFR.averages$mean))
+```
+
+## Question (c)
 
 # Problem 3
 
@@ -112,32 +188,51 @@ ggplot(data = Max.Abs.Diff, aes(x = Window.Size, y = Max.Abs.Diff)) +
 
 ```{r}
 egfr.mdrd4 <- function(scr, age, sex, ethnic){
-  mdrd4 <- 175*scr^(-1.154)*age^(-0.203)
-  if(sex == "Female"){
-    mdrd4 <- base.mdrd4*0.742
+  x <- numeric(length(scr))
+  for(i in 1:length(scr)){
+    mdrd4 <- 175*scr[i]^(-1.154)*age[i]^(-0.203)
+    if(sex[i] == "Female"){
+      mdrd4 <- mdrd4*0.742
+    }
+    if(ethnic[i] == "Black"){
+      mdrd4 <- mdrd4*1.212
+    }
+    x[i] <- mdrd4
   }
-  if(ethnic == "Black"){
-    mdrd4 <- base.mdrd4*1.212
-  }
-  return(mdrd4)
+  return(x)
 }
 
 egfr.ckdepi <- function(scr, age, sex, ethnic){
-  if(sex == "Female"){
-    Kappa <- 0.7
-    alpha <- -0.329
-    adic.factor <- 1.018
-  } else{
-    Kappa <- 0.9
-    alpha <- -0.411
-    adic.factor <- 1
+  x <- numeric(length(scr))
+  for(i in 1:length(scr)){
+    if(sex[i] == "Female"){
+      Kappa <- 0.7
+      alpha <- -0.329
+      adic.factor <- 1.018
+    } else{
+      Kappa <- 0.9
+      alpha <- -0.411
+      adic.factor <- 1
+    }
+    ckdepi <- 141*min(scr[i]/Kappa,1)^alpha*max(scr[i]/Kappa,1)^(-1.209)
+    ckdepi <- ckdepi*0.993^(age[i])*adic.factor
+    if(ethnic[i] == "Black"){
+      ckdepi <- ckdepi*1.159
+    }
+    x[i] <- ckdepi
   }
-  ckdepi <- 141*min(scr/Kappa,1)^alpha*max(scr/Kappa,1)^(-1.209)
-  ckdepi <- ckdepi*0.993^(age)*adic.factor
-  if(ethnic == "Black"){
-    ckdepi <- ckdepi*1.159
-  }
-  return(ckdepi)
+  return(x)
 }
+```
+
+## Question (b)
+
+```{r}
+scr.data <- read.csv(file = "scr.csv", header = TRUE)
+
+data.mdrd4 <- egfr.mdrd4(scr = scr.data$scr,
+                         age = scr.data$age,
+                         sex = scr.data$sex,
+                         ethnic = scr.data$ethnic)
 ```
 
