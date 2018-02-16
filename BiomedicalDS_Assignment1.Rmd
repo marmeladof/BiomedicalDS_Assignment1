@@ -96,7 +96,7 @@ print(Max.Abs.Diff)
 
 ggplot(data = Max.Abs.Diff, aes(x = Window.Size, y = Max.Abs.Diff)) +
   geom_point() +
-  geom_line() +
+  geom_line(linetype = "dashed") +
   labs(x = "Window Size", y = "Maximum Absolute Difference",
        title = "Variation of Maximum Absolute Difference with Window Size")
 
@@ -107,7 +107,7 @@ ggplot(data = Max.Abs.Diff, aes(x = Window.Size, y = Max.Abs.Diff)) +
 The smallest window size is 5.
 
 ```{r}
-min.window <- 0
+min.window <- numeric(2)
 
 df.d <- airquality
 
@@ -116,15 +116,24 @@ df.d$Solar.R <- airquality$Solar.R
 
 for(i in 1:length(df.d$Ozone)){
   Ozone.chkr <- sum(is.nan(impute.to.window.mean(df.d$Ozone, i)))
-  Solar.R.chkr <- sum(is.nan(impute.to.window.mean(df.d$Solar.R, i)))
-  if(Ozone.chkr == 0 & Solar.R.chkr == 0){
-    min.window <- i
+  if(Ozone.chkr == 0){
+    min.window[1] <- i
     break
   }
 }
 
-print("Smallest window that allows imputation of all missing values: ")
-print(min.window)
+for(i in 1:length(df.d$Ozone)){
+  Solar.R.chkr <- sum(is.nan(impute.to.window.mean(df.d$Solar.R, i)))
+  if(Solar.R.chkr == 0){
+    min.window[2] <- i
+    break
+  }
+}
+
+print("Smallest window that allows imputation of all missing values for Ozone: ")
+print(min.window[1])
+print("Smallest window that allows imputation of all missing values for Solar.R: ")
+print(min.window[2])
 ```
 
 
@@ -134,23 +143,21 @@ print(min.window)
 ```{r}
 longe.egfr.1 <- read.csv(file = "longegfr1.csv", header = TRUE)
 
-# changing of variable name in longegfr1 to match that of longegfr2
-colnames(longe.egfr.1)[1] <- "ID"
-
 longe.egfr.2 <- read.csv(file = "longegfr2.csv", header = TRUE)
 
-longe.egfr <- merge(x = longe.egfr.1, y = longe.egfr.2, by = c("ID", "fu.years"),
+longe.egfr <- merge(x = longe.egfr.1, y = longe.egfr.2, by.x = c("id", "fu.years"),
+                    by.y = c("ID", "fu.years"),
                     all.x = TRUE)
 
-longe.egfr$ID <- as.numeric(longe.egfr$ID)
+longe.egfr$id <- as.numeric(longe.egfr$id)
 
-longe.egfr <- longe.egfr[order(longe.egfr$ID, longe.egfr$fu.years),]
+longe.egfr <- longe.egfr[order(longe.egfr$id, longe.egfr$fu.years),]
 
 sort.chkr <- function(x = longe.egfr){
-  if (is.unsorted(x$ID)) {
+  if (is.unsorted(x$id)) {
     stop("ID is not sorted!")
   }
-  for(i in unique(x$ID)){
+  for(i in unique(x$id)){
     if(is.unsorted(x$fu.years[x$ID == i])){
       stop("Follow up time is not sorted!")
     }
@@ -167,8 +174,9 @@ print(sort.chkr())
 ```{r}
 require(dplyr)
 
-eGFR.averages <- longe.egfr %>% as_tibble() %>% group_by(ID) %>%
-  summarise(mean = mean(egfr))
+eGFR.averages <- longe.egfr %>% as_tibble() %>% group_by(id) %>%
+  summarise(mean = mean(egfr, na.rm = TRUE),
+            fu.years = max(fu.years, na.rm = TRUE))
 
 eGFR.averages$interval <- cut(eGFR.averages$mean,
                               breaks = c(0, 15, 30, 60, 90, Inf))
@@ -176,11 +184,79 @@ eGFR.averages$interval <- cut(eGFR.averages$mean,
 print("Patients according to average eGFR: ")
 print(table(eGFR.averages$interval))
 
-print("Number of missing averages: ")
-print(length(unique(longe.egfr$ID)) - length(eGFR.averages$mean))
+print("Number of patients with missing average: ")
+print(sum(is.nan(eGFR.averages$mean)))
 ```
 
 ## Question (c)
+
+```{r}
+
+
+ids <- eGFR.averages$id[eGFR.averages$mean <= 15 & !is.na(eGFR.averages$mean)]
+loc1 <- c(longe.egfr$id == ids[1])
+loc2 <- c(longe.egfr$id == ids[2])
+
+df.0.15 <- data.frame(id = ids,
+                      sex = c(unique(longe.egfr$sex[loc1]),
+                              unique(longe.egfr$sex[loc2])),
+                      bl.age = c(unique(longe.egfr$baseline.age[loc1]),
+                                 unique(longe.egfr$baseline.age[loc2])),
+                      average.eGFR = c(eGFR.averages$mean[eGFR.averages$id == ids[1]],
+                                       eGFR.averages$mean[eGFR.averages$id == ids[2]]),
+                      Max.FU = c(eGFR.averages$fu.years[eGFR.averages$id == ids[1]],
+                                 eGFR.averages$fu.years[eGFR.averages$id == ids[2]]),
+                      eGFR.count = c(sum(!is.na(longe.egfr$egfr[longe.egfr$id == ids[1]])),
+                                     sum(!is.na(longe.egfr$egfr[longe.egfr$id == ids[2]]))))
+```
+
+## Question (d)
+
+```{r}
+df.p3 <- longe.egfr[longe.egfr$id == 3,]
+df.p37 <- longe.egfr[longe.egfr$id == 37,]
+df.p162 <- longe.egfr[longe.egfr$id == 162,]
+df.p223 <- longe.egfr[longe.egfr$id == 223,]
+
+ggplot(data = df.p3, aes(x = fu.years, y = egfr)) +
+  geom_point() +
+  geom_line(linetype = "dashed") +
+  geom_smooth(method = "lm", fill = NA) +
+  geom_smooth(data = subset(df.p3,
+                            egfr > min(egfr, na.rm = TRUE) & egfr < max(egfr, na.rm = TRUE)),
+              method = "lm", col = "red", fill = NA) +
+  ggtitle(paste("eGFR for patient No.",unique(df.p3$id)))
+
+
+ggplot(data = df.p37, aes(x = fu.years, y = egfr)) +
+  geom_point() +
+  geom_line(linetype = "dashed") +
+  geom_smooth(method = "lm", fill = NA) +
+  geom_smooth(data = subset(df.p37,
+                            egfr > min(egfr, na.rm = TRUE) & egfr < max(egfr, na.rm = TRUE)),
+              method = "lm", col = "red", fill = NA) +
+  ggtitle(paste("eGFR for patient No.",unique(df.p37$id)))
+
+ggplot(data = df.p162, aes(x = fu.years, y = egfr)) +
+  geom_point() +
+  geom_line(linetype = "dashed") +
+  geom_smooth(method = "lm", fill = NA) +
+  geom_smooth(data = subset(df.p162,
+                            egfr > min(egfr, na.rm = TRUE) & egfr < max(egfr, na.rm = TRUE)),
+              method = "lm", col = "red", fill = NA) +
+  ggtitle(paste("eGFR for patient No.",unique(df.p162$id)))
+
+ggplot(data = df.p223, aes(x = fu.years, y = egfr)) +
+  geom_point() +
+  geom_line(linetype = "dashed") +
+  geom_smooth(method = "lm", fill = NA) +
+  geom_smooth(data = subset(df.p223,
+                            egfr > min(egfr, na.rm = TRUE) & egfr < max(egfr, na.rm = TRUE)),
+              method = "lm", col = "red", fill = NA) +
+  ggtitle(paste("eGFR for patient No.",unique(df.p223$id)))
+
+```
+
 
 # Problem 3
 
@@ -190,12 +266,16 @@ print(length(unique(longe.egfr$ID)) - length(eGFR.averages$mean))
 egfr.mdrd4 <- function(scr, age, sex, ethnic){
   x <- numeric(length(scr))
   for(i in 1:length(scr)){
-    mdrd4 <- 175*scr[i]^(-1.154)*age[i]^(-0.203)
-    if(sex[i] == "Female"){
-      mdrd4 <- mdrd4*0.742
-    }
-    if(ethnic[i] == "Black"){
-      mdrd4 <- mdrd4*1.212
+    if(is.na(scr[i]) | is.na(age[i]) | is.na(sex[i]) | is.na(ethnic[i])){
+      mdrd4 <- NA
+    } else{
+      mdrd4 <- 175*scr[i]^(-1.154)*age[i]^(-0.203)
+      if(sex[i] == "Female"){
+        mdrd4 <- mdrd4*0.742
+      }
+      if(ethnic[i] == "Black"){
+        mdrd4 <- mdrd4*1.212
+      }
     }
     x[i] <- mdrd4
   }
@@ -205,19 +285,23 @@ egfr.mdrd4 <- function(scr, age, sex, ethnic){
 egfr.ckdepi <- function(scr, age, sex, ethnic){
   x <- numeric(length(scr))
   for(i in 1:length(scr)){
-    if(sex[i] == "Female"){
-      Kappa <- 0.7
-      alpha <- -0.329
-      adic.factor <- 1.018
+    if(is.na(scr[i]) | is.na(age[i]) | is.na(sex[i]) | is.na(ethnic[i])){
+      ckdepi <- NA
     } else{
-      Kappa <- 0.9
-      alpha <- -0.411
-      adic.factor <- 1
-    }
-    ckdepi <- 141*min(scr[i]/Kappa,1)^alpha*max(scr[i]/Kappa,1)^(-1.209)
-    ckdepi <- ckdepi*0.993^(age[i])*adic.factor
-    if(ethnic[i] == "Black"){
-      ckdepi <- ckdepi*1.159
+      if(sex[i] == "Female"){
+        Kappa <- 0.7
+        alpha <- -0.329
+        adic.factor <- 1.018
+      } else{
+        Kappa <- 0.9
+        alpha <- -0.411
+        adic.factor <- 1
+      }
+      ckdepi <- 141*min(scr[i]/Kappa,1)^alpha*max(scr[i]/Kappa,1)^(-1.209)
+      ckdepi <- ckdepi*0.993^(age[i])*adic.factor
+      if(ethnic[i] == "Black"){
+        ckdepi <- ckdepi*1.159
+      }
     }
     x[i] <- ckdepi
   }
@@ -230,9 +314,63 @@ egfr.ckdepi <- function(scr, age, sex, ethnic){
 ```{r}
 scr.data <- read.csv(file = "scr.csv", header = TRUE)
 
-data.mdrd4 <- egfr.mdrd4(scr = scr.data$scr,
-                         age = scr.data$age,
-                         sex = scr.data$sex,
-                         ethnic = scr.data$ethnic)
+data.mdrd4 <- round(egfr.mdrd4(scr = scr.data$scr,
+                               age = scr.data$age,
+                               sex = scr.data$sex,
+                               ethnic = scr.data$ethnic), 2)
+
+data.ckdepi <- round(egfr.ckdepi(scr = scr.data$scr,
+                                 age = scr.data$age,
+                                 sex = scr.data$sex,
+                                 ethnic = scr.data$ethnic), 2)
+
+eGFRs <- data.frame(mdrd4 = data.mdrd4,
+                    ckdepi = data.ckdepi)
+
+mean.mdrd4 <- round(mean(data.mdrd4, na.rm = TRUE), 2)
+
+print(paste("Mean of eGFR according to MDRD4 equation:", mean.mdrd4))
+
+mean.ckdepi <- round(mean(data.ckdepi, na.rm = TRUE), 2)
+
+print(paste("Mean of eGFR according to CKD-EPI equation:", mean.ckdepi))
+
+sd.mdrd4 <- round(sd(data.mdrd4, na.rm = TRUE), 2)
+
+print(paste("Standard deviation of eGFR according to MDRD4 equation:", sd.mdrd4))
+
+sd.ckdepi <- round(sd(data.ckdepi, na.rm = TRUE), 2)
+
+print(paste("Standard deviation of eGFR according to CKD-EPI equation:", sd.ckdepi))
+
+p.cor <- round(cor(x = data.ckdepi[!is.na(data.ckdepi)],
+                   y = data.mdrd4[!is.na(data.mdrd4)],
+                   method = "pearson"), 2)
+
+print(paste("Pearson correlation of results using CKD-EPI and MDRD4 equation:",
+            p.cor))
 ```
 
+## Question (c)
+
+```{r}
+mdrd4.q <- quantile(eGFRs$mdrd4, probs = c(.25, .5, .75), na.rm = TRUE)
+ckdepi.q <- quantile(eGFRs$ckdepi, probs = c(.25, .5, .75), na.rm = TRUE)
+
+ggplot(data = eGFRs, aes(x = mdrd4, y = ckdepi)) +
+  geom_point() +
+  geom_hline(yintercept = ckdepi.q[2], col = "red") +
+  geom_vline(xintercept = mdrd4.q[2], col = "red") +
+  geom_hline(yintercept = c(ckdepi.q[1], ckdepi.q[3]),
+             col = "blue",
+             linetype = "dashed") +
+  geom_vline(xintercept = c(mdrd4.q[1], mdrd4.q[3]),
+             col = "blue",
+             linetype = "dashed")
+```
+
+High pearson's correlation coefficient (very close to 1)
+
+# Problem 4
+
+## Question (a)
